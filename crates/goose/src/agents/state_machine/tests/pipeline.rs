@@ -281,12 +281,7 @@ impl TestPipeline {
             .await?;
         for extension in recipe.extensions.clone().unwrap_or_default() {
             self.extension_manager
-                .add_extension(
-                    extension,
-                    Some(self.working_dir.clone()),
-                    None,
-                    &self.session_id,
-                )
+                .enable(&self.session_id, extension)
                 .await?;
         }
         Ok(())
@@ -511,16 +506,28 @@ impl TestPipeline {
         self.permission_manager.update_user_permission(tool, level);
     }
 
+    pub(super) async fn leased_extensions(&self) -> Result<Vec<String>> {
+        Ok(self
+            .extension_manager
+            .current_lease(&self.session_id)
+            .await?
+            .configs()
+            .iter()
+            .map(ExtensionConfig::key)
+            .collect())
+    }
+
     pub(super) async fn remove_extension(&self, name: &str) -> Result<()> {
         self.extension_manager
-            .remove_extension(&self.session_id, name)
-            .await
-            .map_err(anyhow::Error::from)
+            .disable(&self.session_id, name)
+            .await?;
+        Ok(())
     }
 
     pub(super) async fn add_extension(&self, name: &str) -> Result<()> {
         self.extension_manager
-            .add_extension(
+            .enable(
+                &self.session_id,
                 ExtensionConfig::Platform {
                     name: name.to_string(),
                     description: name.to_string(),
@@ -528,9 +535,6 @@ impl TestPipeline {
                     bundled: None,
                     available_tools: vec![],
                 },
-                Some(self.working_dir.clone()),
-                None,
-                &self.session_id,
             )
             .await
             .map_err(anyhow::Error::from)
@@ -858,7 +862,7 @@ async fn build_test_pipeline(
         .iter()
         .any(|extension| extension.name() == "calculator")
     {
-        extensions.push(platform_extension("calculator", "Stateful test calculator"));
+        extensions.push(calculator_extension());
     }
     for extension in extensions {
         if extension.name() == "calculator" {
@@ -871,14 +875,7 @@ async fn build_test_pipeline(
                 )
                 .await;
         } else {
-            extension_manager
-                .add_extension(
-                    extension,
-                    Some(session.working_dir.clone()),
-                    None,
-                    &session_id,
-                )
-                .await?;
+            extension_manager.enable(&session_id, extension).await?;
         }
     }
 
@@ -887,7 +884,6 @@ async fn build_test_pipeline(
 
 fn default_extensions() -> Vec<ExtensionConfig> {
     [
-        ("calculator", "Stateful test calculator"),
         ("extensionmanager", "Extension Manager"),
         ("todo", "Todo"),
         (
@@ -897,7 +893,21 @@ fn default_extensions() -> Vec<ExtensionConfig> {
     ]
     .into_iter()
     .map(|(name, description)| platform_extension(name, description))
+    .chain([calculator_extension()])
     .collect()
+}
+
+/// Builtin rather than platform: a session's selection keeps only platform
+/// extensions goose ships.
+pub(super) fn calculator_extension() -> ExtensionConfig {
+    ExtensionConfig::Builtin {
+        name: "calculator".to_string(),
+        description: "Stateful test calculator".to_string(),
+        display_name: None,
+        timeout: None,
+        bundled: None,
+        available_tools: vec![],
+    }
 }
 
 fn platform_extension(name: &str, description: &str) -> ExtensionConfig {

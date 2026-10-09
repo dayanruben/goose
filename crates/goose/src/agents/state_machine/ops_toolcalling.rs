@@ -374,7 +374,7 @@ impl ToolExecutionOperation {
         self.batch.lock().unwrap().take()
     }
 
-    async fn lease(&self, session: &Session) -> Arc<ExtensionLease> {
+    async fn lease(&self, session: &Session) -> Result<Arc<ExtensionLease>> {
         let lease = self
             .lease
             .lock()
@@ -382,20 +382,16 @@ impl ToolExecutionOperation {
             .clone();
         if let Some(lease) = lease {
             if lease.scope_id() == session.id {
-                return lease;
+                return Ok(lease);
             }
         }
         self.resolve_lease(session).await
     }
 
-    async fn resolve_lease(&self, session: &Session) -> Arc<ExtensionLease> {
-        let lease = Arc::new(
-            self.extension_manager
-                .current_lease(&session.id, Some(&session.working_dir))
-                .await,
-        );
+    async fn resolve_lease(&self, session: &Session) -> Result<Arc<ExtensionLease>> {
+        let lease = Arc::new(self.extension_manager.current_lease(&session.id).await?);
         *self.lease.lock().expect("extension lease unavailable") = Some(Arc::clone(&lease));
-        lease
+        Ok(lease)
     }
 
     async fn dispatch_tool_call(
@@ -456,11 +452,9 @@ impl ToolExecutionOperation {
                 );
                 ToolCallResult::from(Err(error))
             });
-            let result = self.extension_manager.applying_mutation(
-                result,
-                session.container.clone(),
-                &session.id,
-            );
+            let result = self
+                .extension_manager
+                .applying_mutation(result, &session.id);
             Ok(with_post_tool_hooks(
                 &self.hook_manager,
                 &self.batch,
@@ -514,7 +508,7 @@ impl ToolExecutionOperation {
     ) -> Result<OperationResult<GooseEffect>> {
         let prompts = self
             .lease(session)
-            .await
+            .await?
             .list_prompts(emit.cancel_token().clone())
             .await;
         let extension_filter = command.params_str.split_whitespace().next();
@@ -567,7 +561,7 @@ impl ToolExecutionOperation {
         };
         let prompts = self
             .lease(session)
-            .await
+            .await?
             .list_prompts(emit.cancel_token().clone())
             .await;
         let found = prompts.iter().find_map(|(extension, prompts)| {
@@ -612,7 +606,7 @@ impl ToolExecutionOperation {
             .collect();
         let result = match self
             .lease(session)
-            .await
+            .await?
             .get_prompt(
                 &extension,
                 prompt_name,
@@ -853,7 +847,7 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation {
     async fn inference_tools(&self, session: &Session) -> Result<Vec<Tool>> {
         Ok(self
             .lease(session)
-            .await
+            .await?
             .tools_excluding(crate::skills::EXTENSION_NAME)
             .await)
     }
@@ -863,7 +857,7 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation {
         session: &Session,
         _conversation: &Conversation,
     ) -> Result<Vec<String>> {
-        Ok(self.lease(session).await.moim().await)
+        Ok(self.lease(session).await?.moim().await)
     }
 
     async fn prompt_parts(
@@ -887,7 +881,7 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation {
         }
         let mut prompt_parts = hints.load_new_hints(&session.working_dir);
 
-        let lease = self.lease(session).await;
+        let lease = self.lease(session).await?;
         #[cfg(feature = "code-mode")]
         if lease.is_enabled(crate::agents::platform_extensions::code_execution::EXTENSION_NAME) {
             return Ok(prompt_parts);
@@ -949,7 +943,7 @@ impl Operation<Session, GooseEffect> for ToolExecutionOperation {
                             && !request_has_approval_history(messages, request)
                     }) =>
             {
-                Some(self.resolve_lease(session).await)
+                Some(self.resolve_lease(session).await?)
             }
             None => None,
         };

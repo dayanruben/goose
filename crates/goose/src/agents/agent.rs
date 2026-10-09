@@ -19,9 +19,9 @@ use crate::agents::provider_manager::ProviderManager;
 use crate::agents::state_machine::ops_recipe;
 use crate::agents::state_machine::{
     has_unapplied_tool_confirmation_response, pending_tool_confirmations,
-    persist_tool_confirmation_decision, run_goose, subagent_cancelled_message, BangShellOperation,
-    CompactionOperation, DoctorOperation, Emitter, EmptyResponseOperation, EntryHookOperation,
-    ExitOnErrorOperation, ForegroundSubagentOperation, GooseEffect, GooseInferenceProvider,
+    persist_tool_confirmation_decision, run_goose, BangShellOperation, CompactionOperation,
+    DoctorOperation, Emitter, EmptyResponseOperation, ExitOnErrorOperation,
+    ForegroundSubagentOperation, GooseEffect, GooseInferenceProvider,
     GooseInferenceRequestPreparer, InferenceRunner, MaxTurnsOperation, Operation, ProjectOperation,
     RecipeOperation, RetryOperation, SkillOperation, SlashCommandOperation, StateMachine,
     StatusOperation, SteerOperation, SteerQueue, Step, StopHookOperation, ToolApprovalOperation,
@@ -973,15 +973,8 @@ impl Agent {
         command_handlers.push(status_operation);
         let command_operation: Arc<dyn Operation<Session, GooseEffect> + '_> =
             Arc::new(SlashCommandOperation::new(command_handlers));
-        let operations: Vec<_> =
-            std::iter::once(Arc::new(EntryHookOperation::new(self.hook_manager.clone()))
-                as Arc<dyn Operation<Session, GooseEffect> + '_>)
-            .chain(std::iter::once(command_operation))
+        let steps = std::iter::once(command_operation)
             .chain(operations)
-            .collect();
-
-        let steps = operations
-            .into_iter()
             .map(Step::Operation)
             .chain(std::iter::once(Step::Inference(inference)))
             .collect();
@@ -1080,29 +1073,6 @@ impl Agent {
         .await?;
         Ok(stream
             .map(|stream| crate::session_context::with_session_id_stream(Some(session_id), stream)))
-    }
-
-    pub async fn cancel_foreground_subagents(&self, session_id: &str) {
-        if let Err(error) = self.record_cancelled_subagents(session_id).await {
-            error!(
-                session_id,
-                ?error,
-                "Failed to record cancelled foreground subagents"
-            );
-        }
-    }
-
-    async fn record_cancelled_subagents(&self, session_id: &str) -> Result<()> {
-        let session_manager = &self.config.session_manager;
-        let session = session_manager.get_session(session_id, true).await?;
-        let Some(message) = session
-            .conversation
-            .as_ref()
-            .and_then(|conversation| subagent_cancelled_message(conversation.messages()))
-        else {
-            return Ok(());
-        };
-        session_manager.add_message(session_id, &message).await
     }
 
     async fn resume_state_machine_turn_inner(
@@ -1208,11 +1178,11 @@ impl Agent {
                     }
                 }
 
-                let has_state_machine_answer = turn_guard
+                let resume = turn_guard
                     .state()
                     .wait_for_all_confirmation_answers(&cancel)
-                    .await?;
-                if !has_state_machine_answer {
+                    .await;
+                if !resume {
                     turn_guard.state().clear_confirmations();
                     return;
                 }
@@ -1255,12 +1225,18 @@ impl Agent {
 
         Ok(Box::pin(
             async_stream::try_stream! {
-                let (tx, mut rx) = mpsc::channel::<AgentEvent>(32);
+                let (tx, mut rx) = mpsc::unbounded_channel::<AgentEvent>();
                 let emit = Emitter::new(tx, cancel.clone());
                 let result = {
                     let run = crate::session_context::with_session_id(
                         Some(session_id.clone()),
-                        run_goose(&machine, session_manager.as_ref(), &session_id, &emit),
+                        run_goose(
+                            &machine,
+                            session_manager.as_ref(),
+                            &self.hook_manager,
+                            &session_id,
+                            &emit,
+                        ),
                     );
                     tokio::pin!(run);
                     loop {

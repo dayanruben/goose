@@ -44,7 +44,10 @@ const MAX_RETRY_AFTER_SECS: f64 = 3600.0;
 /// `error.metadata.retry_after_seconds` (OpenRouter shape, more precise than
 /// the integer header) and falls back to the RFC 7231 `Retry-After` header
 /// in either its delay-seconds form or its HTTP-date form.
-fn extract_retry_after(headers: &HeaderMap, payload: Option<&Value>) -> Option<Duration> {
+///
+/// Public so providers with their own retry loops (e.g. gcpvertexai) can
+/// honor the hint on statuses they short-circuit.
+pub fn extract_retry_after(headers: &HeaderMap, payload: Option<&Value>) -> Option<Duration> {
     if let Some(secs) = payload
         .and_then(|p| p.get("error"))
         .and_then(|e| e.get("metadata"))
@@ -254,6 +257,22 @@ pub fn map_http_error_to_provider_error(
     map_http_error(status, payload, url, None)
 }
 
+/// Fold a 429's retry hint into the error so the agent's retry loop honors
+/// the server-requested delay. Non-429 errors pass through unchanged.
+fn apply_retry_after(
+    err: ProviderError,
+    headers: &HeaderMap,
+    payload: Option<&Value>,
+) -> ProviderError {
+    match err {
+        ProviderError::RateLimitExceeded { details, .. } => ProviderError::RateLimitExceeded {
+            details,
+            retry_delay: extract_retry_after(headers, payload),
+        },
+        other => other,
+    }
+}
+
 /// Folds the request id into the message text so every variant carries it without a new field.
 pub fn map_http_error(
     status: StatusCode,
@@ -461,14 +480,8 @@ async fn handle_status_with_limit(
         let body = String::from_utf8_lossy(&body);
         let payload = serde_json::from_str::<Value>(&body).ok();
         let request_id = extract_request_id(&headers);
-        let mut err = map_http_error(status, payload.clone(), &url, request_id.as_deref());
-        if let ProviderError::RateLimitExceeded { details, .. } = &err {
-            err = ProviderError::RateLimitExceeded {
-                details: details.clone(),
-                retry_delay: extract_retry_after(&headers, payload.as_ref()),
-            };
-        }
-        return Err(err);
+        let err = map_http_error(status, payload.clone(), &url, request_id.as_deref());
+        return Err(apply_retry_after(err, &headers, payload.as_ref()));
     }
     Ok(response)
 }
@@ -1030,6 +1043,25 @@ mod tests {
                 expected_context_overflow,
                 "unexpected classification for {case}: {error:?}"
             );
+        }
+    }
+
+    #[test]
+    fn legacy_error_mapping_ignores_retry_hint() {
+        // The legacy mapper predates Retry-After support: a 429 payload
+        // carrying retry_after_seconds must still map to retry_delay None,
+        // so existing callers keep their old retry behavior.
+        let payload = json!({ "error": { "metadata": { "retry_after_seconds": 45.0 } } });
+        let err = map_http_error_to_provider_error(
+            StatusCode::TOO_MANY_REQUESTS,
+            Some(payload),
+            "http://test/endpoint",
+        );
+        match err {
+            ProviderError::RateLimitExceeded { retry_delay, .. } => {
+                assert_eq!(retry_delay, None);
+            }
+            other => panic!("expected rate limit, got: {other:?}"),
         }
     }
 }

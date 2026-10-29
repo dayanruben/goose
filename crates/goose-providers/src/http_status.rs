@@ -119,6 +119,11 @@ fn is_context_length_exceeded(payload: Option<&Value>, message: &str) -> bool {
                 .get("code")
                 .and_then(Value::as_str)
                 .is_some_and(|code| code.eq_ignore_ascii_case("context_length_exceeded"))
+                || error
+                    .get("metadata")
+                    .and_then(|metadata| metadata.get("error_type"))
+                    .and_then(Value::as_str)
+                    .is_some_and(|kind| kind.eq_ignore_ascii_case("context_length_exceeded"))
                 || match (
                     error.get("n_prompt_tokens").and_then(Value::as_f64),
                     error.get("n_ctx").and_then(Value::as_f64),
@@ -940,6 +945,31 @@ mod tests {
                 "context overflow code",
                 error_payload([("code", json!("Context_Length_Exceeded"))]),
                 true,
+            ),
+            (
+                "OpenRouter typed context overflow",
+                error_payload([
+                    ("code", json!(400)),
+                    ("message", json!("Provider returned error")),
+                    (
+                        "metadata",
+                        json!({
+                            "error_type": "context_length_exceeded",
+                            "provider_name": "Relace",
+                            "raw": "upstream error"
+                        }),
+                    ),
+                ]),
+                true,
+            ),
+            (
+                "OpenRouter output token limit type",
+                error_payload([
+                    ("code", json!(400)),
+                    ("message", json!("Provider returned error")),
+                    ("metadata", json!({ "error_type": "max_tokens_exceeded" })),
+                ]),
+                false,
             ),
             (
                 "prompt exceeds context limit",

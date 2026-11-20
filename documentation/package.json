@@ -42,8 +42,8 @@
     "@docusaurus/module-type-aliases": "3.7.0",
     "@docusaurus/tsconfig": "3.7.0",
     "@docusaurus/types": "3.7.0",
-    "gray-matter": "^4.0.3",
     "globby": "^13.2.2",
+    "gray-matter": "^4.0.3",
     "js-yaml": "^4.3.2",
     "typescript": "~5.6.2",
     "yaml-loader": "^0.8.1"
@@ -62,5 +62,9 @@
   },
   "engines": {
     "node": ">=18.0"
+  },
+  "overrides": {
+    "tinypool": "^2.1.2",
+    "serialize-javascript": "^7.1.3"
   }
 }

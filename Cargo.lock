@@ -2235,9 +2235,9 @@ dependencies = [
 
 [[package]]
 name = "cookie"
-version = "0.18.2"
+version = "0.18.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a373e3602691c3cdea496d2f0ee5935151e6168fe87739483c463db1b2f2f87"
+checksum = "d55f2d6c30eeec7d5c6f98bd4395d4abb1895629eab97ee6522d340623615f8a"
 dependencies = [
  "percent-encoding",
  "time",
@@ -4020,7 +4020,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.60.0"
+version = "1.61.0"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-http",
@@ -4155,7 +4155,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp-macros"
-version = "1.60.0"
+version = "1.61.0"
 dependencies = [
  "quote",
  "syn 3.0.10",
@@ -4163,7 +4163,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp-types"
-version = "0.1.0-alpha.15"
+version = "0.1.0-alpha.16"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",
@@ -4176,7 +4176,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.60.0"
+version = "1.61.0"
 dependencies = [
  "agent-client-protocol",
  "anstream",
@@ -4239,7 +4239,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.60.0"
+version = "1.61.0"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -4267,7 +4267,7 @@ dependencies = [
 
 [[package]]
 name = "goose-roaming"
-version = "1.60.0"
+version = "1.61.0"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -4287,7 +4287,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.60.0"
+version = "1.61.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -4295,7 +4295,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test-support"
-version = "1.60.0"
+version = "1.61.0"
 dependencies = [
  "axum",
  "env-lock",
@@ -6574,7 +6574,7 @@ dependencies = [
 
 [[package]]
 name = "oi-kit-agent"
-version = "0.1.0-alpha.15"
+version = "0.1.0-alpha.16"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6614,7 +6614,7 @@ dependencies = [
 
 [[package]]
 name = "oi-kit-bindings"
-version = "0.1.0-alpha.15"
+version = "0.1.0-alpha.16"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -6630,7 +6630,7 @@ dependencies = [
 
 [[package]]
 name = "oi-kit-context-management"
-version = "0.1.0-alpha.15"
+version = "0.1.0-alpha.16"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6646,7 +6646,7 @@ dependencies = [
 
 [[package]]
 name = "oi-kit-download-manager"
-version = "0.1.0-alpha.15"
+version = "0.1.0-alpha.16"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -6658,7 +6658,7 @@ dependencies = [
 
 [[package]]
 name = "oi-kit-local-inference"
-version = "0.1.0-alpha.15"
+version = "0.1.0-alpha.16"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -6692,7 +6692,7 @@ dependencies = [
 
 [[package]]
 name = "oi-kit-provider-types"
-version = "0.1.0-alpha.15"
+version = "0.1.0-alpha.16"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -6724,7 +6724,7 @@ dependencies = [
 
 [[package]]
 name = "oi-kit-providers"
-version = "0.1.0-alpha.15"
+version = "0.1.0-alpha.16"
 dependencies = [
  "anyhow",
  "async-stream",
